@@ -129,24 +129,79 @@ app.post("/api/users/:_id/exercises", async function (req, res) {
   }
 });
 
+function getDate(params) {
+  let date;
+  if (!params) {
+    date = null;
+  } else {
+    let dateObj = new Date(params);
+    if (dateObj.getTime()) {
+      date = dateObj;
+    } else {
+      date = null;
+    }
+  }
+  return date;
+}
+
 app.get("/api/users/:_id/logs", async function (req, res) {
   const _id = req.params._id;
+  let { from, to, limit } = req.query;
+  console.log(req.query);
+
+  from = getDate(from);
+  to = getDate(to);
+  limit = Number(limit ? limit : 0);
+
   let log;
   const user = await User.findById(_id);
-  Exercise.find({ userid: _id })
-    .select("-__v")
-    .then((users) => {
-      log = {
-        username: user.username,
-        count: users.length,
-        _id: user._id,
-        log: users,
-      };
+  if (!user) {
+    return res.send("couldn't find user");
+  }
+  const exercises = await Exercise.find({ userid: _id });
+  console.log(exercises);
 
-      res.send(log);
-      console.log(users);
-      console.log(log);
-    });
+  const filteredLog = exercises.filter((exercise) => {
+    if (from && to) {
+      return new Date(exercise.date) >= from && new Date(exercise.date) <= to;
+    } else if (from && !to) {
+      return new Date(exercise.date) >= from;
+    } else if (!from && to) {
+      return new Date(exercise.date) <= to;
+    } else {
+      return true;
+    }
+  });
+
+  let limitedLog = limit > 0 ? filteredLog.slice(0, limit) : filteredLog;
+
+  log = {
+    username: user.username,
+    count: exercises.length,
+    _id: _id,
+    log: limitedLog,
+  };
+  res.json(log);
+
+  // Old Method for Passing ALL TESTS EXCEPT LAST One
+
+  // const _id = req.params._id;
+  // let log;
+  // const user = await User.findById(_id);
+  // Exercise.find({ userid: _id })
+  //   .select("-__v")
+  //   .then((users) => {
+  //     log = {
+  //       username: user.username,
+  //       count: users.length,
+  //       _id: user._id,
+  //       log: users,
+  //     };
+
+  //     res.send(log);
+  //     // console.log(users);
+  //     // console.log(log);
+  //   });
 });
 
 const listener = app.listen(process.env.PORT || 3000, () => {
